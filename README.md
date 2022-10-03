@@ -1,0 +1,2 @@
+# MMVN
+Multi-modal learning approach to get attribute-based representations from natural language and visual descriptions that can be used to recognize object instances from perceptual data and natural language descriptions
