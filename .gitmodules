@@ -1,3 +1,6 @@
 [submodule "ReferFormer"]
 	path = ReferFormer
 	url = https://github.com/wjn922/ReferFormer.git
+[submodule "MTTR"]
+	path = MTTR
+	url = https://github.com/mttr2021/MTTR.git
