@@ -1,6 +1,6 @@
 ReferFormer/*
 MTTR/*
-data/*
+data/*/*
 /*.pyc
 datasets/a2d_sentences/__pycache__/*
 datasets/__pycache__/*
