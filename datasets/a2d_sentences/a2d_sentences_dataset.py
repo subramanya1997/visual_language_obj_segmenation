@@ -12,9 +12,11 @@ from glob import glob
 from tqdm import tqdm
 import datasets.transforms as T
 from pycocotools.mask import encode, area
-from misc import nested_tensor_from_videos_list
-from datasets.a2d_sentences.create_gt_in_coco_format import create_a2d_sentences_ground_truth_test_annotations
-from utils import get_image_id
+from utils.misc import nested_tensor_from_videos_list
+from datasets.a2d_sentences.create_a2d_gt_in_coco_format import create_a2d_sentences_ground_truth_test_annotations
+from .utils import get_image_id
+from utils.utils import get_logging
+
 
 class A2DSentencesDataset(Dataset):
     """
@@ -23,73 +25,66 @@ class A2DSentencesDataset(Dataset):
     https://arxiv.org/abs/1803.07485
     """
     def __init__(self, subset_type: str = 'train', dataset_path: str = './a2d_sentences', window_size=8,
-                 dataset_coco_gt_format_path=None, distributed=False, **kwargs):
+                 dataset_coco_gt_format_path=None, logging_level='INFO', **kwargs):
         super(A2DSentencesDataset, self).__init__()
+        # logging
+        self.logger = get_logging(name=__name__, level=logging_level)
         assert subset_type in ['train', 'test'], 'error, unsupported dataset subset type. supported: train, test'
+        self.logger.info(f'Loading {subset_type} dataset from {dataset_path}...')
         self.subset_type = subset_type
         self.mask_annotations_dir = path.join(dataset_path, 'text_annotations/a2d_annotation_with_instances')
         self.videos_dir = path.join(dataset_path, 'Release/clips320H')
-        self.text_annotations = self.get_text_annotations(dataset_path, subset_type, distributed)
+        self.text_annotations = self.get_text_annotations(root_path=dataset_path, subset=subset_type)
         self.window_size = window_size
         self.transforms = A2dSentencesTransforms(subset_type, **kwargs)
         self.collator = Collator()
-        # create ground-truth test annotations for the evaluation process if necessary:
-        if subset_type == 'test' and not path.exists(dataset_coco_gt_format_path):
-            if (distributed and dist.get_rank() == 0) or not distributed:
-                create_a2d_sentences_ground_truth_test_annotations()
-            if distributed:
-                dist.barrier()
 
     @staticmethod
-    def get_text_annotations(root_path, subset, distributed):
-        saved_annotations_file_path = f'./datasets/a2d_sentences/a2d_sentences_single_frame_{subset}_annotations.json'
+    def get_text_annotations(root_path, subset):
+        saved_annotations_file_path = path.join(root_path, f'a2d_sentences_single_frame_{subset}_annotations.json')
         if path.exists(saved_annotations_file_path):
             with open(saved_annotations_file_path, 'r') as f:
                 text_annotations_by_frame = [tuple(a) for a in json.load(f)]
                 return text_annotations_by_frame
-        elif (distributed and dist.get_rank() == 0) or not distributed:
-            print(f'building a2d sentences {subset} text annotations...')
-            # without 'header == None' pandas will ignore the first sample...
-            a2d_data_info = pandas.read_csv(path.join(root_path, 'Release/videoset.csv'), header=None)
-            assert len(a2d_data_info) == 3782, f'error: a2d videoset.csv file is missing one or more samples.'
-            # 'vid', 'label', 'start_time', 'end_time', 'height', 'width', 'total_frames', 'annotated_frames', 'subset'
-            a2d_data_info.columns = ['vid', '', '', '', '', '', '', '', 'subset']
-            with open(path.join(root_path, 'text_annotations/a2d_missed_videos.txt'), 'r') as f:
-                unused_videos = f.read().splitlines()
-            subsets = {'train': 0, 'test': 1}
-            # filter unused videos and videos which do not belong to our train/test subset:
-            used_videos = a2d_data_info[
-                ~a2d_data_info.vid.isin(unused_videos) & (a2d_data_info.subset == subsets[subset])]
-            used_videos_ids = list(used_videos['vid'])
-            text_annotations = pandas.read_csv(path.join(root_path, 'text_annotations/a2d_annotation.txt'))
-            assert len(text_annotations) == 6655, 'error: a2d_annotations.txt is missing one or more samples.'
-            # filter the text annotations based on the used videos:
-            used_text_annotations = text_annotations[text_annotations.video_id.isin(used_videos_ids)]
-            # remove a single dataset annotation mistake in video: T6bNPuKV-wY
-            used_text_annotations = used_text_annotations[used_text_annotations['instance_id'] != '1 (copy)']
-            # convert data-frame to list of tuples:
-            used_text_annotations = list(used_text_annotations.to_records(index=False))
-            text_annotations_by_frame = []
-            mask_annotations_dir = path.join(root_path, 'text_annotations/a2d_annotation_with_instances')
-            for video_id, instance_id, text_query in tqdm(used_text_annotations):
-                frame_annot_paths = sorted(glob(path.join(mask_annotations_dir, video_id, '*.h5')))
-                instance_id = int(instance_id)
-                for p in frame_annot_paths:
-                    f = h5py.File(p)
-                    instances = list(f['instance'])
-                    if instance_id in instances:
-                        # in case this instance does not appear in this frame it has no ground-truth mask, and thus this
-                        # frame-instance pair is ignored in evaluation, same as SOTA method: CMPC-V. check out:
-                        # https://github.com/spyflying/CMPC-Refseg/blob/094639b8bf00cc169ea7b49cdf9c87fdfc70d963/CMPC_video/build_A2D_batches.py#L98
-                        frame_idx = int(p.split('/')[-1].split('.')[0])
-                        text_query = text_query.lower()  # lower the text query prior to augmentation & tokenization
-                        text_annotations_by_frame.append((text_query, video_id, frame_idx, instance_id))
-            with open(saved_annotations_file_path, 'w') as f:
-                json.dump(text_annotations_by_frame, f)
-        if distributed:
-            dist.barrier()
-            with open(saved_annotations_file_path, 'r') as f:
-                text_annotations_by_frame = [tuple(a) for a in json.load(f)]
+        self.logger.info(f'Building a2d sentences {subset} text annotations...')
+        # without 'header == None' pandas will ignore the first sample...
+        a2d_data_info = pandas.read_csv(path.join(root_path, 'Release/videoset.csv'), header=None)
+        assert len(a2d_data_info) == 3782, f'error: a2d videoset.csv file is missing one or more samples.'
+        # 'vid', 'label', 'start_time', 'end_time', 'height', 'width', 'total_frames', 'annotated_frames', 'subset'
+        a2d_data_info.columns = ['vid', '', '', '', '', '', '', '', 'subset']
+        with open(path.join(root_path, 'text_annotations/a2d_missed_videos.txt'), 'r') as f:
+            unused_videos = f.read().splitlines()
+        subsets = {'train': 0, 'test': 1}
+        # filter unused videos and videos which do not belong to our train/test subset:
+        used_videos = a2d_data_info[
+            ~a2d_data_info.vid.isin(unused_videos) & (a2d_data_info.subset == subsets[subset])]
+        used_videos_ids = list(used_videos['vid'])
+        text_annotations = pandas.read_csv(path.join(root_path, 'text_annotations/a2d_annotation.txt'))
+        assert len(text_annotations) == 6655, 'error: a2d_annotations.txt is missing one or more samples.'
+        # filter the text annotations based on the used videos:
+        used_text_annotations = text_annotations[text_annotations.video_id.isin(used_videos_ids)]
+        # remove a single dataset annotation mistake in video: T6bNPuKV-wY
+        used_text_annotations = used_text_annotations[used_text_annotations['instance_id'] != '1 (copy)']
+        # convert data-frame to list of tuples:
+        used_text_annotations = list(used_text_annotations.to_records(index=False))
+        text_annotations_by_frame = []
+        mask_annotations_dir = path.join(root_path, 'text_annotations/a2d_annotation_with_instances')
+        for video_id, instance_id, text_query in tqdm(used_text_annotations):
+            frame_annot_paths = sorted(glob(path.join(mask_annotations_dir, video_id, '*.h5')))
+            instance_id = int(instance_id)
+            for p in frame_annot_paths:
+                f = h5py.File(p)
+                instances = list(f['instance'])
+                if instance_id in instances:
+                    # in case this instance does not appear in this frame it has no ground-truth mask, and thus this
+                    # frame-instance pair is ignored in evaluation, same as SOTA method: CMPC-V. check out:
+                    # https://github.com/spyflying/CMPC-Refseg/blob/094639b8bf00cc169ea7b49cdf9c87fdfc70d963/CMPC_video/build_A2D_batches.py#L98
+                    frame_idx = int(p.split('/')[-1].split('.')[0])
+                    text_query = text_query.lower()  # lower the text query prior to augmentation & tokenization
+                    text_annotations_by_frame.append((text_query, video_id, frame_idx, instance_id))
+        with open(saved_annotations_file_path, 'w') as f:
+            json.dump(text_annotations_by_frame, f)
+
         return text_annotations_by_frame
 
     def __getitem__(self, idx):

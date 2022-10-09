@@ -1,15 +1,15 @@
 # * Train
 lr:
   desc: main model learning rate
-  value: 1e-4
+  value: 0.0001
 lr_backbone:
   desc: backbone learning rate
-  value: 1e-5
+  value: 0.00001
 text_encoder_lr:
   desc: text encoder learning rate
-  value: 5e-5
+  value: 0.00005
 weight_decay:
-  value: 1e-4
+  value: 0.0001
 epochs:
   value: 70
 clip_max_norm:
@@ -96,6 +96,8 @@ eos_coef:
 # * Dataset Parameters
 dataset_name:
   value: a2d_sentences
+dataset_path:
+  value: data/a2d_sentences
 resize_and_crop_augmentations:
   value: true
 horizontal_flip_augmentations:
@@ -123,7 +125,7 @@ num_workers:
 dataset_coco_gt_format_path:
   desc: path to the dataset's ground truth data in COCO format (a JSON file). used for metrics calculation (mAP etc.)
         using Pycocotools.
-  value: './data/a2d_sentences/a2d_sentences_test_annotations_in_coco_format.json'
+  value: 'data/a2d_sentences/a2d_sentences_test_annotations_in_coco_format.json'
 calculate_precision_and_iou_metrics:
   value: true
 

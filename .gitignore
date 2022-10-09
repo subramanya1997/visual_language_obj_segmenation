@@ -3,3 +3,8 @@ MTTR/*
 data/*
 /*.pyc
 datasets/a2d_sentences/__pycache__/*
+datasets/__pycache__/*
+__pycache__/*
+models/__pycache__/*
+utils/__pycache__/*
+runs/*

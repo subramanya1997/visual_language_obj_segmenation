@@ -4,8 +4,12 @@ from trainer import Trainer
 import yaml
 import os
 import wandb
+from utils.utils import get_logging
 
 def run(args):
+    # logger 
+    logger = get_logging(name=__name__ ,level=args.logging_level) 
+    logger.info(f'Runing...')
     with open(args.config_path) as f:
         config = yaml.load(f, Loader=yaml.FullLoader)
 
@@ -21,9 +25,6 @@ def run(args):
             model_state_dict = model_state_dict['model_state_dict']
         trainer.model.load_state_dict(model_state_dict, strict=True)
         trainer.evaluate()
-    
-
-
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser('MMVN training and evaluation')
@@ -40,9 +41,12 @@ if __name__ == '__main__':
     parser.add_argument('--eval_batch_size', '-ebs', type=int,
                         help='evaluation batch size per device. '
                              'if not provided training batch size will be used instead.')
-    parser.add_argument('--checkpoint_path', '-ckpt', type=str,
+    parser.add_argument('--checkpoint_path', '-ckpt', type=str, default='checkpoints/',
                         help='path of checkpoint file to load for evaluation purposes')
+    parser.add_argument('--logging_level', '-ll', type=str, default='DEBUG')
     args = parser.parse_args()
 
     if args.eval_batch_size is None:
-        args.eval_batch_size = args.batch_size               
+        args.eval_batch_size = args.batch_size
+
+    run(args=args)
