@@ -2,3 +2,4 @@ ReferFormer/*
 MTTR/*
 data/*
 /*.pyc
+datasets/a2d_sentences/__pycache__/*
