@@ -29,7 +29,7 @@ backbone_pretrained:
   desc: whether to load pretrained weights
   value: true
 backbone_pretrained_path:
-  value: 'pretrained_swin_transformer/swin_tiny_patch244_window877_kinetics400_1k.pth'
+  value: 'pretrained/swin_tiny_patch244_window877_kinetics400_1k.pth'
 train_backbone:
   value: true
 

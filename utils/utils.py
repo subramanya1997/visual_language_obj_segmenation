@@ -21,7 +21,6 @@ def create_output_dir(config_path):
     shutil.copyfile(src=config_path, dst=path.join(output_dir_path, 'config.yaml'))
     return output_dir_path
 
-
 def create_checkpoint_dir(output_dir_path):
     checkpoint_dir_path = path.join(output_dir_path, 'checkpoints')
     os.makedirs(checkpoint_dir_path, exist_ok=True)
@@ -34,3 +33,12 @@ def get_logging(name, level='INFO'):
         logging.basicConfig(level=logging.DEBUG)
     logger = logging.getLogger(name)
     return logger
+
+def to_device(sample, device):
+    if isinstance(sample, torch.Tensor):
+        sample = sample.to(device)
+    elif isinstance(sample, tuple) or isinstance(sample, list):
+        sample = [to_device(s, device) for s in sample]
+    elif isinstance(sample, dict):
+        sample = {k: to_device(v, device) for k, v in sample.items()}
+    return sample

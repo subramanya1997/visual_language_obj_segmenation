@@ -16,7 +16,7 @@ from torch.utils.data import DataLoader
 from torch.optim.lr_scheduler import MultiStepLR
 from PIL import Image
 from tqdm import tqdm
-from utils.utils import create_output_dir, create_checkpoint_dir, flatten_temporal_batch_dims, get_logging
+from utils.utils import create_output_dir, create_checkpoint_dir, flatten_temporal_batch_dims, get_logging, to_device
 
 from models import build_model
 from datasets import build_dataset
@@ -87,9 +87,34 @@ class Trainer:
         pass
     
     def train(self):
+        self.logger.info(f'Starting training...')
+        for epoch in range(self.epoch, self.total_epochs):
+            self.model.train()
+            # self.criterion.train()
+
+            total_epoch_loss = 0
+            # loss_sums_dict = {k: 0 for k in self.criterion.weight_dict.keys()}
+            for batch_dict in tqdm(self.data_loader_train, desc=f'Epoch {epoch+1}/{self.total_epochs}'):
+                samples = batch_dict['samples'].to(self.device)
+                targets = to_device(batch_dict['targets'], self.device)
+                text_queries = batch_dict['text_queries']
+
+                # keep only the valid targets (targets of frames which are annotated). for example, in a2d-sentences
+                # only the center frame in each window is annotated.
+                valid_indices = torch.tensor([i for i, t in enumerate(targets) if None not in t]).to(self.device)
+                targets = [targets[i] for i in valid_indices.tolist()]
+
+                print( f'Sample: {samples.tensors.shape} {samples.mask.shape}' )
+                print( f'targets: {valid_indices}' )
+                print( f'Sample: {text_queries}' )
+
+                break
+            break
         pass
     
     def evaluate(self):
+        self.logger.info(f'Starting evaluation...')
+
         pass
 
     @torch.no_grad()

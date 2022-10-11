@@ -1,6 +1,7 @@
 import argparse
 import torch
 from trainer import Trainer
+from feature_extractor import FeatureExtractor
 import yaml
 import os
 import wandb
@@ -16,6 +17,12 @@ def run(args):
     config = {k: v['value'] for k, v in config.items()}
     config = {**config, **vars(args)}
     config = argparse.Namespace(**config)
+
+    if args.running_mode == 'feature_extractor':
+        feature_extractor = FeatureExtractor(config)
+        feature_extractor.extract_features()
+        return 
+
     trainer = Trainer(config)
     if config.running_mode == 'train':
         trainer.train()
@@ -30,7 +37,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser('MMVN training and evaluation')
     parser.add_argument('--config_path', '-c', required=True,
                         help='path to configuration file')
-    parser.add_argument('--running_mode', '-rm', choices=['train', 'eval'], required=True,
+    parser.add_argument('--running_mode', '-rm', choices=['train', 'eval', 'feature_extractor'], required=True,
                         help="mode to run, either 'train' or 'eval'")
     parser.add_argument('--window_size', '-ws', type=int,
                         help='window length to use during training/evaluation.'
