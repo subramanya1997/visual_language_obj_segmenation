@@ -1,0 +1,7 @@
+{
+    "combine_datasets": ["modulated_lvis"],
+    "combine_datasets_val": ["modulated_lvis"],
+    "coco2017_path": "/work/pi_hzhang2_umass_edu/snagabhushan_umass_edu/dataset/",
+    "modulated_lvis_ann_path": "/work/pi_hzhang2_umass_edu/snagabhushan_umass_edu/dataset/OpenSource/",
+    "lvis_subset": 1
+}
